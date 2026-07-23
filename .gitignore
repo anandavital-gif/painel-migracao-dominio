@@ -1,0 +1,11 @@
+node_modules/
+__pycache__/
+*.pyc
+.DS_Store
+scripts/_test_render.mjs
+/tmp/
+*.log
+
+# NUNCA versionar: planilha de origem tem CPF e endereço completo sem
+# máscara (ver seção "Privacidade e LGPD" do README). Fica só localmente.
+docs_fonte/

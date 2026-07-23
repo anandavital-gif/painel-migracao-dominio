@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel de Migração — TOTVS Protheus → Domínio Sistemas | Grupo Paraná</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+  <header class="app-header">
+    <div>
+      <h1>Painel de Controle — Migração TOTVS Protheus → Domínio Sistemas</h1>
+      <p class="subtitle">Grupo Paraná · Contábil / Fiscal / Departamento Pessoal</p>
+      <p class="header-meta" id="headerMeta">Carregando…</p>
+    </div>
+    <div class="header-actions">
+      <button class="icon-btn" id="themeToggle" title="Alternar tema">🌙</button>
+      <button id="btnExport" title="Baixa uma cópia dos dados atuais em JSON, para análise ou backup">Exportar JSON</button>
+      <button class="primary" id="btnRefresh" title="Busca de novo os dados publicados da planilha">Atualizar agora</button>
+    </div>
+  </header>
+
+  <div class="wrap">
+
+    <div class="kpi-row" id="kpiRow"></div>
+
+    <div class="filter-row">
+      <input type="search" id="search" placeholder="Buscar cliente, CNPJ/CPF...">
+      <select id="fCidade"></select>
+      <select id="fPrioridade"></select>
+      <select id="fStatus"></select>
+      <div class="dep-tabs" id="depTabs"></div>
+    </div>
+
+    <div class="section-title">Progresso por departamento <span class="hint">% médio de conclusão (fase atual ÷ total de fases)</span></div>
+    <div id="meterCol"></div>
+
+    <div class="section-title">Clientes por fase, por departamento <span class="hint">a fase é sempre lida na posição do eixo — nunca por cor</span></div>
+    <div class="chart-grid" id="chartGrid"></div>
+    <div class="legend">
+      <span><span class="sw" style="background:var(--dep-fiscal)"></span>Fiscal</span>
+      <span><span class="sw" style="background:var(--dep-contabilidade)"></span>Contabilidade</span>
+      <span><span class="sw" style="background:var(--dep-dp)"></span>Departamento Pessoal</span>
+    </div>
+
+    <div class="section-title" style="justify-content: space-between; display:flex;">
+      <span>Controle de fase por cliente <span class="hint">clique num card ou numa linha para ver detalhes e editar na planilha</span></span>
+      <span>
+        <button id="viewKanban">Quadro Kanban</button>
+        <button id="viewTabela">Tabela completa</button>
+      </span>
+    </div>
+
+    <div id="kanbanWrap">
+      <div class="kanban-scroll"><div class="kanban" id="kanban"></div></div>
+    </div>
+
+    <div id="tableWrap" class="hidden">
+      <div class="table-wrap">
+        <table class="data-table" id="dataTable">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <footer class="app-footer">
+      Fonte dos dados: planilha "Controle de Migração" no Google Sheets, atualizada pela equipe.
+      Painel mantido pela Contabilidade — Grupo Paraná.
+    </footer>
+  </div>
+</div>
+
+<div id="modalRoot"></div>
+<div class="toast" id="toast"></div>
+
+<script src="js/config.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
