@@ -33,15 +33,28 @@
       <div class="dep-tabs" id="depTabs"></div>
     </div>
 
+    <div class="filter-row">
+      <span class="filter-row-label">Regime tributário:</span>
+      <div class="regime-tabs" id="regimeTabs"></div>
+    </div>
+
     <div class="section-title">Progresso por departamento <span class="hint">% médio de conclusão (fase atual ÷ total de fases)</span></div>
     <div id="meterCol"></div>
 
-    <div class="section-title">Clientes por fase, por departamento <span class="hint">a fase é sempre lida na posição do eixo — nunca por cor</span></div>
+    <div class="section-title" style="justify-content: space-between; display:flex;">
+      <span>Clientes por fase, por departamento <span class="hint">a fase também aparece sempre por texto — nunca só por cor</span></span>
+      <span>
+        <button id="viewChartBarras">Barras</button>
+        <button id="viewChartPizza">Pizza</button>
+      </span>
+    </div>
     <div class="chart-grid" id="chartGrid"></div>
     <div class="legend">
       <span><span class="sw" style="background:var(--dep-fiscal)"></span>Fiscal</span>
       <span><span class="sw" style="background:var(--dep-contabilidade)"></span>Contabilidade</span>
       <span><span class="sw" style="background:var(--dep-dp)"></span>Departamento Pessoal</span>
+      <span><span class="sw" style="background:var(--dep-onvio)"></span>Onvio Processos</span>
+      <span><span class="sw" style="background:var(--dep-kolossus)"></span>Kolossus Auditor (só CNPJ)</span>
     </div>
 
     <div class="section-title" style="justify-content: space-between; display:flex;">
