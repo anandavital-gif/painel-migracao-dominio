@@ -52,6 +52,7 @@
     },
     view: "kanban",     // 'kanban' | 'tabela'
     chartView: "barras", // 'barras' | 'pizza'
+    boardCollapsed: false, // minimiza o Kanban/Tabela sem perder filtros e gráficos acima
     tableSort: { col: "nome", dir: 1 },
     detail: null,        // { clienteId, dep } aberto no modal (somente leitura)
   };
@@ -615,10 +616,13 @@
     populateFilterOptions();
     renderKpis();
     renderCharts();
-    if (STATE.view === "kanban") { renderKanban(); }
-    else { renderTable(); }
-    $("#kanbanWrap").classList.toggle("hidden", STATE.view !== "kanban");
-    $("#tableWrap").classList.toggle("hidden", STATE.view !== "tabela");
+    if (!STATE.boardCollapsed) {
+      if (STATE.view === "kanban") { renderKanban(); }
+      else { renderTable(); }
+    }
+    $("#kanbanWrap").classList.toggle("hidden", STATE.boardCollapsed || STATE.view !== "kanban");
+    $("#tableWrap").classList.toggle("hidden", STATE.boardCollapsed || STATE.view !== "tabela");
+    $("#btnToggleBoard").textContent = STATE.boardCollapsed ? "▸ Mostrar quadro" : "▾ Minimizar";
     const atualizado = STATE.lastFetch ? fmtDateTimeBR(STATE.lastFetch) : "—";
     $("#headerMeta").textContent = `Fonte: Google Sheets · atualizado em ${atualizado} · ${STATE.clientes.length} clientes`;
   }
@@ -641,6 +645,12 @@
 
     $("#viewKanban").addEventListener("click", () => { STATE.view = "kanban"; setViewButtons(); renderAll(); });
     $("#viewTabela").addEventListener("click", () => { STATE.view = "tabela"; setViewButtons(); renderAll(); });
+
+    $("#btnToggleBoard").addEventListener("click", () => {
+      STATE.boardCollapsed = !STATE.boardCollapsed;
+      try { localStorage.setItem("painelBoardCollapsed", STATE.boardCollapsed ? "1" : "0"); } catch (e) {}
+      renderAll();
+    });
 
     $("#viewChartBarras").addEventListener("click", () => { STATE.chartView = "barras"; setChartViewButtons(); renderCharts(); });
     $("#viewChartPizza").addEventListener("click", () => { STATE.chartView = "pizza"; setChartViewButtons(); renderCharts(); });
@@ -668,6 +678,9 @@
   }
 
   async function init() {
+    try {
+      STATE.boardCollapsed = localStorage.getItem("painelBoardCollapsed") === "1";
+    } catch (e) { /* localStorage indisponível — mantém expandido por padrão */ }
     try {
       await loadData();
     } catch (e) {
