@@ -17,14 +17,18 @@
   "use strict";
 
   // Precisam bater com FASES/DEPARTAMENTOS_POSSIVEIS/PRIORIDADES em
-  // scripts/gerar_planilha.py — se mudar lá, muda aqui também.
+  // scripts/importar_dominio.py — se mudar lá, muda aqui também.
   const FASES = [
-    "Não Iniciado", "Levantamento", "Parametrização", "Migração de Dados",
-    "Testes/Homologação", "Treinamento", "Go-live", "Estabilização",
+    "Não Iniciado", "Parametrização", "Migração de Dados",
+    "Testes/Homologação", "Go-live", "Estabilização",
   ];
   const FASE_NAO_APLICAVEL = "Não Aplicável";
-  const DEPARTAMENTOS = ["Fiscal", "Contabilidade", "Departamento Pessoal"];
+  const DEPARTAMENTOS = [
+    "Fiscal", "Contabilidade", "Departamento Pessoal",
+    "Onvio Processos", "Kolossus Auditor",
+  ];
   const PRIORIDADES = ["Alta", "Média", "Baixa"];
+  const REGIMES = ["Simples Nacional", "Lucro Real", "Lucro Presumido", "Pessoa Física"];
 
   const STATUS_LABEL = {
     good: "No prazo",
@@ -40,12 +44,14 @@
     lastFetch: null,
     filters: {
       dept: "__all__",
+      regime: "__all__",
       search: "",
       cidade: "",
       prioridade: "",
       status: "",
     },
     view: "kanban",     // 'kanban' | 'tabela'
+    chartView: "barras", // 'barras' | 'pizza'
     tableSort: { col: "nome", dir: 1 },
     detail: null,        // { clienteId, dep } aberto no modal (somente leitura)
   };
@@ -79,7 +85,27 @@
     if (dep === "Fiscal") return "var(--dep-fiscal)";
     if (dep === "Contabilidade") return "var(--dep-contabilidade)";
     if (dep === "Departamento Pessoal") return "var(--dep-dp)";
+    if (dep === "Onvio Processos") return "var(--dep-onvio)";
+    if (dep === "Kolossus Auditor") return "var(--dep-kolossus)";
     return "var(--text-muted)";
+  }
+
+  // Paleta categórica para o gráfico de pizza (fase por posição de cor, não
+  // por matiz sequencial): baseada na paleta Okabe-Ito, validada para
+  // daltonismo (protanopia/deuteranopia/tritanopia) — diferente da rampa de
+  // azul só que reprovava com muitos degraus. Mesmo assim, a fase nunca fica
+  // só na cor: toda fatia tem rótulo com texto + contagem na legenda ao lado.
+  const FASE_PIE_COLORS = [
+    "#9a9a9a", // Não Iniciado
+    "#56B4E9", // Parametrização
+    "#0072B2", // Migração de Dados
+    "#E69F00", // Testes/Homologação
+    "#009E73", // Go-live
+    "#CC79A7", // Estabilização
+  ];
+  function faseCorPizza(fase) {
+    const i = FASES.indexOf(fase);
+    return i >= 0 ? FASE_PIE_COLORS[i % FASE_PIE_COLORS.length] : "#9a9a9a";
   }
 
   // ------------------------------------------------------------------
@@ -134,10 +160,11 @@
         porCliente.set(nome, {
           id: nome,
           nome,
-          ni: r["CPF/CNPJ"] || "",
-          tipoNI: inferTipoNI(r["CPF/CNPJ"] || ""),
+          ni: r["CPF/CNPJ/CAEPF"] || "",
+          tipoNI: inferTipoNI(r["CPF/CNPJ/CAEPF"] || ""),
           cidade: r["Cidade"] || "",
           estado: r["UF"] || "",
+          regimeTributario: r["Regime Tributário"] || "",
           departamentos: {},
         });
       }
@@ -148,9 +175,7 @@
         faseAtual: r["Fase Atual"] || FASES[0],
         responsavel: r["Responsável"] || "",
         prioridade: r["Prioridade"] || "Média",
-        dataInicioPrevista: r["Início Previsto"] || null,
         dataConclusaoPrevista: r["Conclusão Prevista"] || null,
-        dataConclusaoReal: r["Conclusão Real"] || null,
         observacoes: r["Observações"] || "",
       };
     }
@@ -228,6 +253,7 @@
         if (!hay.includes(normalize(f.search))) continue;
       }
       if (f.cidade && cliente.cidade !== f.cidade) continue;
+      if (f.regime !== "__all__" && (cliente.regimeTributario || "") !== f.regime) continue;
 
       for (const dep of Object.keys(cliente.departamentos || {})) {
         if (!ignoreDeptTab && f.dept !== "__all__" && dep !== f.dept) continue;
@@ -278,27 +304,66 @@
   // Gráficos por departamento (barra horizontal, uma matiz por depto,
   // fase transmitida por posição no eixo — nunca por 8 cores forçadas)
   // ------------------------------------------------------------------
+  function renderChartCardBars(dep, tracks, counts) {
+    const max = Math.max(1, ...counts);
+    const color = depColorVar(dep);
+    return FASES.map((fase, i) => `
+      <div class="hbar-row">
+        <div class="lbl">${escapeHtml(fase)}</div>
+        <div class="hbar-track"><div class="hbar-fill" style="width:${(counts[i] / max) * 100}%; background:${color};"></div></div>
+        <div class="count">${counts[i]}</div>
+      </div>
+    `).join("");
+  }
+
+  function renderChartCardPie(dep, tracks, counts) {
+    const total = counts.reduce((s, c) => s + c, 0);
+    if (!total) {
+      return `<div class="kcol-empty">Nenhuma trilha aplicável nesta fase/departamento</div>`;
+    }
+    let acc = 0;
+    const stops = FASES.map((fase, i) => {
+      const from = (acc / total) * 100;
+      acc += counts[i];
+      const to = (acc / total) * 100;
+      return `${faseCorPizza(fase)} ${from}% ${to}%`;
+    }).join(", ");
+    const legend = FASES.map((fase, i) => {
+      if (!counts[i]) return "";
+      const pct = Math.round((counts[i] / total) * 100);
+      return `
+        <div class="pie-legend-row">
+          <span class="sw" style="background:${faseCorPizza(fase)}"></span>
+          <span class="pie-legend-lbl">${escapeHtml(fase)}</span>
+          <span class="pie-legend-val">${counts[i]} (${pct}%)</span>
+        </div>
+      `;
+    }).join("");
+    return `
+      <div class="pie-row">
+        <div class="pie-visual" style="background: conic-gradient(${stops});" role="img"
+             aria-label="Distribuição de ${escapeHtml(dep)} por fase: ${FASES.map((f, i) => `${f} ${counts[i]}`).join(", ")}"></div>
+        <div class="pie-legend">${legend}</div>
+      </div>
+    `;
+  }
+
   function renderCharts() {
     const grid = $("#chartGrid");
     grid.innerHTML = DEPARTAMENTOS.map((dep) => {
       const tracks = allTracks({ ignoreDeptTab: true }).filter((t) => t.dep === dep);
       const counts = FASES.map((fase) => tracks.filter((t) => t.track.faseAtual === fase).length);
-      const max = Math.max(1, ...counts);
       const color = depColorVar(dep);
-      const rows = FASES.map((fase, i) => `
-        <div class="hbar-row">
-          <div class="lbl">${escapeHtml(fase)}</div>
-          <div class="hbar-track"><div class="hbar-fill" style="width:${(counts[i] / max) * 100}%; background:${color};"></div></div>
-          <div class="count">${counts[i]}</div>
-        </div>
-      `).join("");
+      const body = STATE.chartView === "pizza"
+        ? renderChartCardPie(dep, tracks, counts)
+        : renderChartCardBars(dep, tracks, counts);
       return `
         <div class="chart-card">
           <div class="chart-head">
             <strong style="color:${color}">${escapeHtml(dep)}</strong>
             <span style="color:var(--text-muted); font-size:11px;">${tracks.length} cliente(s)</span>
           </div>
-          ${rows}
+          ${body}
         </div>
       `;
     }).join("");
@@ -363,8 +428,9 @@
   // ------------------------------------------------------------------
   const TABLE_COLS = [
     { key: "nome", label: "Cliente" },
-    { key: "ni", label: "CPF/CNPJ" },
+    { key: "ni", label: "CPF/CNPJ/CAEPF" },
     { key: "cidade", label: "Cidade/UF" },
+    { key: "regime", label: "Regime Tributário" },
     { key: "dep", label: "Departamento" },
     { key: "faseAtual", label: "Fase" },
     { key: "status", label: "Status" },
@@ -380,6 +446,7 @@
         nome: t.cliente.nome,
         ni: t.cliente.ni,
         cidade: `${t.cliente.cidade}/${t.cliente.estado}`,
+        regime: t.cliente.regimeTributario || "—",
         dep: t.dep,
         faseAtual: t.track.faseAtual,
         status: st.label,
@@ -410,6 +477,7 @@
         <td>${escapeHtml(r.nome)}</td>
         <td>${escapeHtml(r.ni)}</td>
         <td>${escapeHtml(r.cidade)}</td>
+        <td>${escapeHtml(r.regime)}</td>
         <td style="color:${depColorVar(r.dep)}">${escapeHtml(r.dep)}</td>
         <td>${escapeHtml(r.faseAtual)}</td>
         <td><span class="badge status-${r.statusKey}">${escapeHtml(r.status)}</span></td>
@@ -453,6 +521,16 @@
       STATE.filters.dept = b.dataset.dep;
       renderAll();
     }));
+
+    $("#regimeTabs").innerHTML = ["__all__", ...REGIMES].map((r) => `
+      <button class="regime-tab" data-regime="${escapeHtml(r)}" data-active="${STATE.filters.regime === r}">
+        ${r === "__all__" ? "Todos os regimes" : escapeHtml(r)}
+      </button>
+    `).join("");
+    $$("#regimeTabs .regime-tab").forEach((b) => b.addEventListener("click", () => {
+      STATE.filters.regime = b.dataset.regime;
+      renderAll();
+    }));
   }
 
   // ------------------------------------------------------------------
@@ -472,7 +550,7 @@
       <div class="modal-backdrop" id="modalBackdrop">
         <div class="modal">
           <h3>${escapeHtml(cliente.nome)}</h3>
-          <div class="modal-sub" style="color:${depColorVar(dep)}">${escapeHtml(dep)} · ${escapeHtml(cliente.ni)} · ${escapeHtml(cliente.cidade)}/${escapeHtml(cliente.estado)}</div>
+          <div class="modal-sub" style="color:${depColorVar(dep)}">${escapeHtml(dep)} · ${escapeHtml(cliente.ni)} · ${escapeHtml(cliente.cidade)}/${escapeHtml(cliente.estado)}${cliente.regimeTributario ? " · " + escapeHtml(cliente.regimeTributario) : ""}</div>
 
           <div class="field-row">
             <div class="field"><label>Fase atual</label><div>${escapeHtml(track.faseAtual)}</div></div>
@@ -482,11 +560,7 @@
             <div class="field"><label>Responsável</label><div>${escapeHtml(track.responsavel || "—")}</div></div>
             <div class="field"><label>Prioridade</label><div>${escapeHtml(track.prioridade || "—")}</div></div>
           </div>
-          <div class="field-row">
-            <div class="field"><label>Início previsto</label><div>${fmtDateBR(track.dataInicioPrevista)}</div></div>
-            <div class="field"><label>Conclusão prevista</label><div>${fmtDateBR(track.dataConclusaoPrevista)}</div></div>
-          </div>
-          <div class="field"><label>Conclusão real</label><div>${fmtDateBR(track.dataConclusaoReal)}</div></div>
+          <div class="field"><label>Conclusão prevista</label><div>${fmtDateBR(track.dataConclusaoPrevista)}</div></div>
           <div class="field"><label>Observações / bloqueios</label><div>${escapeHtml(track.observacoes) || "—"}</div></div>
 
           <div class="modal-actions">
@@ -568,6 +642,9 @@
     $("#viewKanban").addEventListener("click", () => { STATE.view = "kanban"; setViewButtons(); renderAll(); });
     $("#viewTabela").addEventListener("click", () => { STATE.view = "tabela"; setViewButtons(); renderAll(); });
 
+    $("#viewChartBarras").addEventListener("click", () => { STATE.chartView = "barras"; setChartViewButtons(); renderCharts(); });
+    $("#viewChartPizza").addEventListener("click", () => { STATE.chartView = "pizza"; setChartViewButtons(); renderCharts(); });
+
     $("#btnExport").addEventListener("click", exportJson);
     $("#btnRefresh").addEventListener("click", () => refresh());
 
@@ -585,6 +662,11 @@
     $("#viewTabela").classList.toggle("primary", STATE.view === "tabela");
   }
 
+  function setChartViewButtons() {
+    $("#viewChartBarras").classList.toggle("primary", STATE.chartView === "barras");
+    $("#viewChartPizza").classList.toggle("primary", STATE.chartView === "pizza");
+  }
+
   async function init() {
     try {
       await loadData();
@@ -594,6 +676,7 @@
     }
     wireStaticControls();
     setViewButtons();
+    setChartViewButtons();
     renderAll();
   }
 
