@@ -22,10 +22,16 @@
   --baseline:        #c3c2b7;
   --border:          rgba(11,11,11,0.10);
 
-  /* Categórico — departamentos (ordem fixa, nunca ciclada) */
+  /* Categórico — departamentos (ordem fixa, nunca ciclada). Onvio Processos
+     e Kolossus Auditor (24/07/2026) usam roxo e marrom-dourado da paleta
+     ColorBrewer "Dark2" (qualitativa, segura para daltonismo), continuando
+     a partir dos 3 slots já validados — evita reaproveitar hues já usados
+     em status (verde/amarelo/vermelho) ou nos 2 primeiros departamentos. */
   --dep-fiscal:          #2a78d6;  /* slot 1 azul */
   --dep-contabilidade:   #eb6834;  /* slot 2 laranja */
   --dep-dp:              #1baf7a;  /* slot 3 água-marinha */
+  --dep-onvio:           #7570b3;  /* slot 4 roxo */
+  --dep-kolossus:        #a6761d;  /* slot 5 marrom-dourado */
 
   /* Sequencial (uma matiz, azul) — usado em % de conclusão / meters */
   --seq-100: #cde2fb; --seq-250: #86b6ef; --seq-450: #2a78d6; --seq-700: #0d366b;
@@ -60,6 +66,8 @@
     --dep-fiscal:          #3987e5;
     --dep-contabilidade:   #d95926;
     --dep-dp:              #199e70;
+    --dep-onvio:           #9490c9;
+    --dep-kolossus:        #c99b47;
 
     --seq-100: #184f95; --seq-250: #256abf; --seq-450: #3987e5; --seq-700: #cde2fb;
 
@@ -167,13 +175,23 @@ button.icon-btn { padding: 8px 10px; font-size: 15px; line-height: 1; }
 .dep-tab[data-dep="Fiscal"][data-active="true"] { background: var(--dep-fiscal); }
 .dep-tab[data-dep="Contabilidade"][data-active="true"] { background: var(--dep-contabilidade); }
 .dep-tab[data-dep="Departamento Pessoal"][data-active="true"] { background: var(--dep-dp); }
+.dep-tab[data-dep="Onvio Processos"][data-active="true"] { background: var(--dep-onvio); }
+.dep-tab[data-dep="Kolossus Auditor"][data-active="true"] { background: var(--dep-kolossus); }
 .dep-tab[data-dep="__all__"][data-active="true"] { background: var(--text-primary); color: var(--page); }
+
+.filter-row-label { font-size: 12.5px; color: var(--text-secondary); flex: 0 0 auto; }
+.regime-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.regime-tab {
+  padding: 7px 12px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--surface-2); font-size: 12.5px; color: var(--text-secondary); cursor: pointer;
+}
+.regime-tab[data-active="true"] { background: var(--text-primary); color: var(--page); border-color: transparent; }
 
 /* ---------- Section / charts ---------- */
 .section-title { font-size: 14px; font-weight: 700; margin: 28px 0 12px; display:flex; align-items:center; gap:8px; }
 .section-title .hint { font-weight: 400; color: var(--text-muted); font-size: 12px; }
 
-.chart-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.chart-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
 @media (max-width: 1000px) { .chart-grid { grid-template-columns: 1fr; } }
 
 .chart-card {
@@ -189,6 +207,18 @@ button.icon-btn { padding: 8px 10px; font-size: 15px; line-height: 1; }
 .hbar-track { background: var(--gridline); border-radius: 3px; height: 14px; position: relative; overflow: hidden; }
 .hbar-fill { height: 100%; border-radius: 3px 0 0 3px; min-width: 2px; }
 .hbar-row .count { font-size: 11.5px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+
+/* ---------- Gráfico de pizza (alternativa ao de barras) ---------- */
+.pie-row { display: flex; align-items: center; gap: 16px; }
+.pie-visual {
+  width: 96px; height: 96px; border-radius: 50%; flex: 0 0 auto;
+  border: 1px solid var(--border);
+}
+.pie-legend { display: flex; flex-direction: column; gap: 5px; min-width: 0; flex: 1 1 auto; }
+.pie-legend-row { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--text-secondary); }
+.pie-legend-row .sw { width: 9px; height: 9px; border-radius: 2px; flex: 0 0 auto; }
+.pie-legend-lbl { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pie-legend-val { flex: 0 0 auto; font-variant-numeric: tabular-nums; color: var(--text-muted); }
 
 /* ---------- Meters (progresso por departamento) ---------- */
 .meter-row { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
@@ -238,6 +268,8 @@ button.icon-btn { padding: 8px 10px; font-size: 15px; line-height: 1; }
 .card[data-dep="Fiscal"] { border-left-color: var(--dep-fiscal); }
 .card[data-dep="Contabilidade"] { border-left-color: var(--dep-contabilidade); }
 .card[data-dep="Departamento Pessoal"] { border-left-color: var(--dep-dp); }
+.card[data-dep="Onvio Processos"] { border-left-color: var(--dep-onvio); }
+.card[data-dep="Kolossus Auditor"] { border-left-color: var(--dep-kolossus); }
 .card .cname { font-size: 12.5px; font-weight: 600; margin-bottom: 4px; line-height: 1.25;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .card .cmeta { font-size: 10.5px; color: var(--text-muted); margin-bottom: 6px; }
