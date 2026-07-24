@@ -21,6 +21,6 @@
  * de edição).
  */
 window.APP_CONFIG = {
-  sheetCsvUrl: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRs3BNJKqKWJpTeRRAbBKtG7vcGmhMs5oUUencbcXXYgiqItmZh3movl7gpXnUDjvwbWQmseiYlq8Zu/pub?gid=1351166333&single=true&output=csv",
+  sheetCsvUrl: "https://docs.google.com/spreadsheets/d/1eeu3wNlzInr7ETVJP4NrwtzkypnhTw3Ta273d7Suhzk/edit?gid=1837841088#gid=1837841088",
   sheetEditUrl: "https://docs.google.com/spreadsheets/d/1eeu3wNlzInr7ETVJP4NrwtzkypnhTw3Ta273d7Suhzk/edit",
 };
