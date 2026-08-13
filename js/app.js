@@ -30,6 +30,26 @@
   const PRIORIDADES = ["Alta", "Média", "Baixa"];
   const REGIMES = ["Simples Nacional", "Lucro Real", "Lucro Presumido", "Pessoa Física"];
 
+  // A planilha tem um dropdown pra "Fase Atual", mas o Google Sheets nem
+  // sempre preserva a validação de lista ao importar um .xlsx — se alguém
+  // digitar a fase em vez de selecionar da lista (ex.: "Go-Live" com L
+  // maiúsculo, ou com espaço sobrando), o texto da célula deixa de bater
+  // exatamente com FASES e o cálculo de progresso trata como fase
+  // desconhecida (conta como 0%, mesmo a pessoa achando que marcou
+  // "Go-live"). Essa função corrige isso: ignora maiúsculas/minúsculas e
+  // espaços nas pontas antes de comparar, então "go-live ", "GO-LIVE" ou
+  // "Go-Live" caem todos na mesma fase canônica "Go-live". Se o texto não
+  // bater com nenhuma fase conhecida, mantém como veio (aparece na tela do
+  // jeito que foi digitado, mas não entra no cálculo — mesmo comportamento
+  // de antes pra esse caso).
+  function normalizarFase(bruto) {
+    const val = String(bruto ?? "").trim();
+    if (!val) return FASES[0];
+    const todas = [...FASES, FASE_NAO_APLICAVEL];
+    const encontrada = todas.find((f) => f.toLowerCase() === val.toLowerCase());
+    return encontrada || val;
+  }
+
   const STATUS_LABEL = {
     good: "No prazo",
     good_done: "Concluído",
@@ -173,7 +193,7 @@
       const dep = r["Departamento"];
       if (!dep) continue;
       cliente.departamentos[dep] = {
-        faseAtual: r["Fase Atual"] || FASES[0],
+        faseAtual: normalizarFase(r["Fase Atual"]),
         responsavel: r["Responsável"] || "",
         prioridade: r["Prioridade"] || "Média",
         dataConclusaoPrevista: r["Conclusão Prevista"] || null,
@@ -289,16 +309,18 @@
     // progresso (ver trackProgress01).
     const concluidosGoLive = aplicaveis.filter((t) => t.track.faseAtual === "Go-live").length;
     const concluidosEstabilizacao = aplicaveis.filter((t) => t.track.faseAtual === "Estabilização").length;
-    const atrasados = aplicaveis.filter((t) => trackStatus(t.track).key === "critical").length;
     const naoIniciados = aplicaveis.filter((t) => t.track.faseAtual === "Não Iniciado").length;
     const pctGeral = aplicaveis.length
       ? Math.round(100 * aplicaveis.reduce((s, t) => s + trackProgress01(t.track), 0) / aplicaveis.length)
       : 0;
 
+    // "Trilhas atrasadas" foi removido a pedido da Ananda pra fechar em 5
+    // cards sem espaçamento estranho no grid. O dado continua disponível —
+    // quem quiser ver atrasados usa o filtro de Status no quadro/tabela
+    // abaixo (trackStatus() continua calculando isso normalmente).
     const tiles = [
       { label: "Clientes na visão atual", value: clientesUnicos, sub: `${aplicaveis.length} trilha(s) aplicável(is)` },
       { label: "% concluído (médio)", value: pctGeral + "%", sub: "média ponderada pela fase de cada trilha" },
-      { label: "Trilhas atrasadas", value: atrasados, sub: "prazo previsto já vencido", cls: atrasados > 0 ? "status-critical" : "" },
       { label: "Concluídas (Go-live)", value: concluidosGoLive, sub: "foi ao ar, ainda em acompanhamento", cls: concluidosGoLive > 0 ? "status-good" : "" },
       { label: "Concluídas (Estabilização)", value: concluidosEstabilizacao, sub: "etapa final", cls: concluidosEstabilizacao > 0 ? "status-good" : "" },
       { label: "Não iniciadas", value: naoIniciados, sub: "" },
