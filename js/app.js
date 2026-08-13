@@ -28,7 +28,12 @@
     "Onvio Processos", "Kolossus Auditor",
   ];
   const PRIORIDADES = ["Alta", "Média", "Baixa"];
-  const REGIMES = ["Simples Nacional", "Lucro Real", "Lucro Presumido", "Pessoa Física"];
+  // "Isenta/Imune" adicionada em 13/08/2026 — achada pelo Auditor de
+  // divergências (Apps Script) rodado na planilha viva: associações,
+  // institutos e igrejas (entidades sem fins lucrativos) já estavam
+  // corretamente classificadas assim pela equipe, só que essa opção não
+  // existia na lista oficial — o painel não reconhecia o valor.
+  const REGIMES = ["Simples Nacional", "Lucro Real", "Lucro Presumido", "Pessoa Física", "Isenta/Imune"];
 
   // A planilha tem dropdowns pra Fase Atual, Prioridade e Regime
   // Tributário, mas o Google Sheets nem sempre preserva a validação de
