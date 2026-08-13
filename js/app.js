@@ -318,11 +318,19 @@
     // cards sem espaçamento estranho no grid. O dado continua disponível —
     // quem quiser ver atrasados usa o filtro de Status no quadro/tabela
     // abaixo (trackStatus() continua calculando isso normalmente).
+    //
+    // Os valores de "Concluídas (Go-live)" e "Concluídas (Estabilização)"
+    // são CONTAGENS de trilhas (cliente × departamento), não porcentagem —
+    // isso já causou confusão (100 trilhas em Go-live foi lido como
+    // "100%"). O "de X trilhas aplicáveis (Y%)" no rodapé do card deixa
+    // explícito que é uma fração do total, não um percentual isolado.
+    const pctGoLive = aplicaveis.length ? Math.round(100 * concluidosGoLive / aplicaveis.length) : 0;
+    const pctEstabilizacao = aplicaveis.length ? Math.round(100 * concluidosEstabilizacao / aplicaveis.length) : 0;
     const tiles = [
       { label: "Clientes na visão atual", value: clientesUnicos, sub: `${aplicaveis.length} trilha(s) aplicável(is)` },
       { label: "% concluído (médio)", value: pctGeral + "%", sub: "média ponderada pela fase de cada trilha" },
-      { label: "Concluídas (Go-live)", value: concluidosGoLive, sub: "foi ao ar, ainda em acompanhamento", cls: concluidosGoLive > 0 ? "status-good" : "" },
-      { label: "Concluídas (Estabilização)", value: concluidosEstabilizacao, sub: "etapa final", cls: concluidosEstabilizacao > 0 ? "status-good" : "" },
+      { label: "Concluídas (Go-live)", value: concluidosGoLive, sub: `de ${aplicaveis.length} trilhas aplicáveis (${pctGoLive}%)`, cls: concluidosGoLive > 0 ? "status-good" : "" },
+      { label: "Concluídas (Estabilização)", value: concluidosEstabilizacao, sub: `de ${aplicaveis.length} trilhas aplicáveis (${pctEstabilizacao}%) — etapa final`, cls: concluidosEstabilizacao > 0 ? "status-good" : "" },
       { label: "Não iniciadas", value: naoIniciados, sub: "" },
     ];
 
