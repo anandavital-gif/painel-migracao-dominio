@@ -30,25 +30,37 @@
   const PRIORIDADES = ["Alta", "Média", "Baixa"];
   const REGIMES = ["Simples Nacional", "Lucro Real", "Lucro Presumido", "Pessoa Física"];
 
-  // A planilha tem um dropdown pra "Fase Atual", mas o Google Sheets nem
-  // sempre preserva a validação de lista ao importar um .xlsx — se alguém
-  // digitar a fase em vez de selecionar da lista (ex.: "Go-Live" com L
-  // maiúsculo, ou com espaço sobrando), o texto da célula deixa de bater
-  // exatamente com FASES e o cálculo de progresso trata como fase
-  // desconhecida (conta como 0%, mesmo a pessoa achando que marcou
-  // "Go-live"). Essa função corrige isso: ignora maiúsculas/minúsculas e
-  // espaços nas pontas antes de comparar, então "go-live ", "GO-LIVE" ou
-  // "Go-Live" caem todos na mesma fase canônica "Go-live". Se o texto não
-  // bater com nenhuma fase conhecida, mantém como veio (aparece na tela do
-  // jeito que foi digitado, mas não entra no cálculo — mesmo comportamento
-  // de antes pra esse caso).
-  function normalizarFase(bruto) {
+  // A planilha tem dropdowns pra Fase Atual, Prioridade e Regime
+  // Tributário, mas o Google Sheets nem sempre preserva a validação de
+  // lista ao importar um .xlsx, e a coluna "Departamento" nunca teve
+  // dropdown — se alguém digitar o valor em vez de selecionar da lista
+  // (ex.: "Go-Live" com L maiúsculo, "alta" minúsculo, um espaço sobrando,
+  // "kolossus auditor" sem maiúsculas), o texto da célula deixa de bater
+  // exatamente com a lista canônica que o painel espera. Pra Fase Atual
+  // isso é o pior caso: o cálculo de progresso trata como fase
+  // desconhecida e conta como 0%, mesmo a pessoa achando que marcou
+  // "Go-live" (foi a causa real do bug do Kolossus Auditor travado). Pra
+  // Departamento/Prioridade/Regime o efeito é mais sutil — o valor aparece
+  // certo na tela, mas não bate com os filtros/abas (ex.: um cliente com
+  // Prioridade "alta" simplesmente não aparece ao filtrar por "Alta").
+  //
+  // normalizarContraLista() resolve isso pra todos os quatro campos: ignora
+  // maiúsculas/minúsculas e espaços nas pontas antes de comparar com a
+  // lista conhecida, então "go-live ", "GO-LIVE" ou "Go-Live" caem todos em
+  // "Go-live". Se o texto não bater com nada conhecido, mantém como veio —
+  // aparece na tela do jeito que foi digitado, mas não entra em cálculos
+  // nem em filtros por lista (mesmo comportamento de antes pra esse caso
+  // extremo; é um sinal de que a célula precisa de correção manual).
+  function normalizarContraLista(bruto, lista, { padrao = null } = {}) {
     const val = String(bruto ?? "").trim();
-    if (!val) return FASES[0];
-    const todas = [...FASES, FASE_NAO_APLICAVEL];
-    const encontrada = todas.find((f) => f.toLowerCase() === val.toLowerCase());
-    return encontrada || val;
+    if (!val) return padrao;
+    const encontrado = lista.find((v) => v.toLowerCase() === val.toLowerCase());
+    return encontrado || val;
   }
+  const normalizarFase = (bruto) => normalizarContraLista(bruto, [...FASES, FASE_NAO_APLICAVEL], { padrao: FASES[0] });
+  const normalizarDepartamento = (bruto) => normalizarContraLista(bruto, DEPARTAMENTOS, { padrao: "" });
+  const normalizarPrioridade = (bruto) => normalizarContraLista(bruto, PRIORIDADES, { padrao: "Média" });
+  const normalizarRegime = (bruto) => normalizarContraLista(bruto, REGIMES, { padrao: "" });
 
   const STATUS_LABEL = {
     good: "No prazo",
@@ -86,16 +98,55 @@
     }[c]));
   }
 
+  // "Conclusão Prevista" é a ÚNICA data que sobrou na planilha e alimenta
+  // TODO o sistema de status de prazo (Atrasado/Atenção/No prazo). O
+  // cadastro mestre grava essa data em ISO ("2026-08-20"), mas depois que a
+  // coluna passa pela ida-e-volta Planilha Excel → Google Sheets → CSV
+  // publicado, o texto que chega pro painel depende de como aquela célula
+  // está formatada no Google Sheets — se virou uma data "de verdade" lá
+  // (não texto puro), o Sheets pode publicar no formato brasileiro
+  // "20/08/2026" em vez de ISO. O parser antigo só entendia ISO — uma
+  // célula em formato BR silenciosamente virava "Sem data definida" em vez
+  // de calcular o prazo certo, sem erro nenhum aparecer. Esse parser aceita
+  // os dois formatos (e cai pro parser nativo do JS como último recurso).
+  function parseDataFlexivel(bruto) {
+    const val = String(bruto ?? "").trim();
+    if (!val) return null;
+    let m = val.match(/^(\d{4})-(\d{2})-(\d{2})/); // ISO: 2026-08-20
+    if (m) {
+      const d = new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00`);
+      return isNaN(d) ? null : d;
+    }
+    m = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/); // BR: 20/08/2026 ou 20/08/26
+    if (m) {
+      let [, dd, mm, yyyy] = m;
+      if (yyyy.length === 2) yyyy = "20" + yyyy;
+      const d = new Date(`${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}T00:00:00`);
+      return isNaN(d) ? null : d;
+    }
+    const d = new Date(val); // último recurso: outros formatos que o Sheets possa gerar
+    return isNaN(d) ? null : d;
+  }
+
   function fmtDateBR(iso) {
-    if (!iso) return "—";
-    const d = new Date(iso.length === 10 ? iso + "T00:00:00" : iso);
-    if (isNaN(d)) return "—";
+    const d = parseDataFlexivel(iso);
+    if (!d) return "—";
     return d.toLocaleDateString("pt-BR");
   }
 
   function fmtDateTimeBR(d) {
     if (!d) return "—";
     return d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+  }
+
+  // ~27 propriedades rurais importadas da Domínio não trazem cidade/UF
+  // preenchidos (só nome + NI). Sem isso, cards e tabela mostravam "/"
+  // sozinho pra esses clientes — visualmente quebrado.
+  function fmtCidadeUF(cidade, estado) {
+    if (!cidade && !estado) return "—";
+    if (!cidade) return estado;
+    if (!estado) return cidade;
+    return `${cidade}/${estado}`;
   }
 
   function todayStr() {
@@ -185,17 +236,25 @@
           tipoNI: inferTipoNI(r["CPF/CNPJ/CAEPF"] || ""),
           cidade: r["Cidade"] || "",
           estado: r["UF"] || "",
-          regimeTributario: r["Regime Tributário"] || "",
+          regimeTributario: normalizarRegime(r["Regime Tributário"]),
           departamentos: {},
         });
       }
       const cliente = porCliente.get(nome);
-      const dep = r["Departamento"];
+      // Regime Tributário é campo por CLIENTE, repetido em toda linha de
+      // departamento dele na planilha — se uma linha divergir das outras
+      // (célula editada em só uma delas por engano), avisa no console em
+      // vez de mascarar o problema silenciosamente.
+      const regimeLinha = normalizarRegime(r["Regime Tributário"]);
+      if (regimeLinha && cliente.regimeTributario && regimeLinha !== cliente.regimeTributario) {
+        console.warn(`Planilha: "${nome}" tem Regime Tributário divergente entre linhas ("${cliente.regimeTributario}" vs "${regimeLinha}") — confira na planilha.`);
+      }
+      const dep = normalizarDepartamento(r["Departamento"]);
       if (!dep) continue;
       cliente.departamentos[dep] = {
         faseAtual: normalizarFase(r["Fase Atual"]),
         responsavel: r["Responsável"] || "",
-        prioridade: r["Prioridade"] || "Média",
+        prioridade: normalizarPrioridade(r["Prioridade"]),
         dataConclusaoPrevista: r["Conclusão Prevista"] || null,
         observacoes: r["Observações"] || "",
       };
@@ -241,8 +300,8 @@
     }
     if (track.dataConclusaoPrevista) {
       const hoje = new Date(todayStr() + "T00:00:00");
-      const prevista = new Date(track.dataConclusaoPrevista + "T00:00:00");
-      if (!isNaN(prevista)) {
+      const prevista = parseDataFlexivel(track.dataConclusaoPrevista);
+      if (prevista) {
         const diffDias = Math.round((prevista - hoje) / 86400000);
         if (diffDias < 0) return { key: "critical", cls: "critical", label: STATUS_LABEL.critical };
         if (diffDias <= 7) return { key: "warning", cls: "warning", label: STATUS_LABEL.warning };
@@ -441,7 +500,7 @@
         return `
           <button class="card" data-dep="${escapeHtml(t.dep)}" data-cliente="${escapeHtml(t.cliente.id)}" data-dep-key="${escapeHtml(t.dep)}">
             <div class="cname">${escapeHtml(t.cliente.nome)}</div>
-            <div class="cmeta">${escapeHtml(t.cliente.cidade)}/${escapeHtml(t.cliente.estado)} · ${escapeHtml(t.track.responsavel || "sem responsável")}</div>
+            <div class="cmeta">${escapeHtml(fmtCidadeUF(t.cliente.cidade, t.cliente.estado))} · ${escapeHtml(t.track.responsavel || "sem responsável")}</div>
             <div class="cfoot">
               ${showDep ? `<span class="cdep" style="color:${depColorVar(t.dep)}">${escapeHtml(t.dep)}</span>` : "<span></span>"}
               <span class="badge status-${st.cls || st.key}">${escapeHtml(st.label)}</span>
@@ -488,7 +547,7 @@
       return {
         nome: t.cliente.nome,
         ni: t.cliente.ni,
-        cidade: `${t.cliente.cidade}/${t.cliente.estado}`,
+        cidade: fmtCidadeUF(t.cliente.cidade, t.cliente.estado),
         regime: t.cliente.regimeTributario || "—",
         dep: t.dep,
         faseAtual: t.track.faseAtual,
@@ -543,7 +602,11 @@
   // Filtros / opções de select dinâmicas
   // ------------------------------------------------------------------
   function populateFilterOptions() {
-    const cidades = [...new Set(STATE.clientes.map((c) => c.cidade))].sort();
+    // .filter(Boolean) exclui cidade em branco (~27 propriedades rurais
+    // importadas da Domínio sem endereço preenchido) — sem isso, o dropdown
+    // mostrava uma segunda opção em branco idêntica visualmente a "Todas as
+    // cidades" (mesmo value=""), mas listada como cidade separada.
+    const cidades = [...new Set(STATE.clientes.map((c) => c.cidade).filter(Boolean))].sort();
     $("#fCidade").innerHTML = `<option value="">Todas as cidades</option>` +
       cidades.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
 
@@ -593,7 +656,7 @@
       <div class="modal-backdrop" id="modalBackdrop">
         <div class="modal">
           <h3>${escapeHtml(cliente.nome)}</h3>
-          <div class="modal-sub" style="color:${depColorVar(dep)}">${escapeHtml(dep)} · ${escapeHtml(cliente.ni)} · ${escapeHtml(cliente.cidade)}/${escapeHtml(cliente.estado)}${cliente.regimeTributario ? " · " + escapeHtml(cliente.regimeTributario) : ""}</div>
+          <div class="modal-sub" style="color:${depColorVar(dep)}">${escapeHtml(dep)} · ${escapeHtml(cliente.ni)} · ${escapeHtml(fmtCidadeUF(cliente.cidade, cliente.estado))}${cliente.regimeTributario ? " · " + escapeHtml(cliente.regimeTributario) : ""}</div>
 
           <div class="field-row">
             <div class="field"><label>Fase atual</label><div>${escapeHtml(track.faseAtual)}</div></div>
