@@ -234,6 +234,11 @@
 
   function trackProgress01(track) {
     if (track.faseAtual === FASE_NAO_APLICAVEL) return null;
+    // Go-live e Estabilização contam como 100% — trackStatus() já trata as
+    // duas como "Concluído" (rótulo good_done); manter os dois em 100% aqui
+    // evita a inconsistência de um cliente "Concluído" no crachá de status
+    // mas preso em 80% na barra de progresso.
+    if (track.faseAtual === "Go-live" || track.faseAtual === "Estabilização") return 1;
     const idx = FASES.indexOf(track.faseAtual);
     return idx < 0 ? 0 : idx / (FASES.length - 1);
   }
@@ -277,7 +282,13 @@
     const tracks = allTracks();
     const clientesUnicos = new Set(tracks.map((t) => t.cliente.id)).size;
     const aplicaveis = tracks.filter((t) => t.track.faseAtual !== FASE_NAO_APLICAVEL);
-    const concluidos = aplicaveis.filter((t) => t.track.faseAtual === "Estabilização").length;
+    // Concluído se separa em duas etapas: Go-live (foi ao ar, ainda em
+    // acompanhamento) e Estabilização (etapa final — cliente rodando
+    // normalmente na Domínio, sem intercorrências). São cards distintos
+    // por pedido da Ananda, mesmo os dois contando como 100% na barra de
+    // progresso (ver trackProgress01).
+    const concluidosGoLive = aplicaveis.filter((t) => t.track.faseAtual === "Go-live").length;
+    const concluidosEstabilizacao = aplicaveis.filter((t) => t.track.faseAtual === "Estabilização").length;
     const atrasados = aplicaveis.filter((t) => trackStatus(t.track).key === "critical").length;
     const naoIniciados = aplicaveis.filter((t) => t.track.faseAtual === "Não Iniciado").length;
     const pctGeral = aplicaveis.length
@@ -288,7 +299,8 @@
       { label: "Clientes na visão atual", value: clientesUnicos, sub: `${aplicaveis.length} trilha(s) aplicável(is)` },
       { label: "% concluído (médio)", value: pctGeral + "%", sub: "média ponderada pela fase de cada trilha" },
       { label: "Trilhas atrasadas", value: atrasados, sub: "prazo previsto já vencido", cls: atrasados > 0 ? "status-critical" : "" },
-      { label: "Concluídas (Estabilização)", value: concluidos, sub: "", cls: concluidos > 0 ? "status-good" : "" },
+      { label: "Concluídas (Go-live)", value: concluidosGoLive, sub: "foi ao ar, ainda em acompanhamento", cls: concluidosGoLive > 0 ? "status-good" : "" },
+      { label: "Concluídas (Estabilização)", value: concluidosEstabilizacao, sub: "etapa final", cls: concluidosEstabilizacao > 0 ? "status-good" : "" },
       { label: "Não iniciadas", value: naoIniciados, sub: "" },
     ];
 
